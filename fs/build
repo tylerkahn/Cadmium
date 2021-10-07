@@ -3,6 +3,7 @@ CADMIUMROOT=$(dirname $(dirname $(realpath $0)))
 ROOTPART=$1
 
 set -e
+set -x
 set -v
 
 source $CADMIUMROOT/config
@@ -51,6 +52,23 @@ cd $CADMIUMROOT/tmp
 
 # rootfs-specific setup
 case "$ROOTFS" in
+	arch)
+		echo "Installing Arch"
+		ROOTFS_TAR_GZ="ArchLinuxARM-$ARCH_ARCH-latest.tar.gz"
+		if [ ! -f $ROOTFS_TAR_GZ ]; then
+			wget http://os.archlinuxarm.org/os/$ROOTFS_TAR_GZ
+		fi
+		tar xfp $ROOTFS_TAR_GZ -C $CADMIUMROOT/tmp/root
+		cp /etc/resolv.conf root/etc/resolv.conf
+		arch-chroot root/ /usr/bin/pacman-key --init
+		arch-chroot root/ /usr/bin/pacman-key --refresh-keys
+		arch-chroot root/ /usr/bin/pacman-key --populate archlinuxarm
+		sed -i $CADMIUMROOT/tmp/root/etc/pacman.conf -e s/"#IgnorePkg   ="/"IgnorePkg   = linux-aarch64"/
+		arch-chroot root/ /usr/bin/pacman --noconfirm -Syu
+		arch-chroot root/ /usr/bin/pacman --noconfirm -S git base vboot-utils networkmanager weston vim f2fs-tools parted
+		
+
+	;;
 	ubuntu)
 		echo "Installing Ubuntu"
 		# debootstrap randomly exits with 1, so there's that || true
@@ -67,7 +85,8 @@ case "$ROOTFS" in
 	debian)
 		echo "Installing Debian"
 		# debootstrap randomly exits with 1, so there's that || true
-		debootstrap --arch=$ARCH_DEB $SUITE $CADMIUMROOT/tmp/root/ https://deb.debian.org/debian/ || true
+		# debootstrap --arch=$ARCH_DEB $SUITE $CADMIUMROOT/tmp/root/ https://deb.debian.org/debian/ || true
+		debootstrap --arch=$ARCH_DEB $SUITE $CADMIUMROOT/tmp/root/ http://debian.csail.mit.edu/debian/ || true
 		# preinstall packages to have wifi
 		chroot root/ $qemu /bin/apt update
 		chroot root/ $qemu /bin/apt install -y vim vboot-utils network-manager debootstrap parted f2fs-tools libudev-dev build-essential git firmware-ath9k-htc kmscube weston
